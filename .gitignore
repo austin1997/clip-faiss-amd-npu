@@ -1,3 +1,9 @@
+# vscode extensions
+.vscode/
+
+# model cache
+onnx/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
