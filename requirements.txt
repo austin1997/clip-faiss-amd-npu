@@ -33,3 +33,7 @@ urllib3==1.26.13
 wcwidth==0.2.6
 Werkzeug==2.3.6
 zipp==3.16.2
+pybind11[global]
+spdlog
+eigen
+nlohmann_json

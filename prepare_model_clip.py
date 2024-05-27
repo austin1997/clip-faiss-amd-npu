@@ -311,7 +311,9 @@ onnx_dir = "./onnx/" + model_name
 onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
 # onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
 # onnx_path = "D:\\git_repo\\clip-faiss-amd-npu\\quantize_result\\CLIP_int.onnx"
-config_path = 'C:\\Users\\austi\\Downloads\\ryzen-ai-sw-1.1\\ryzen-ai-sw-1.1\\voe-4.0-win_amd64\\vaip_config.json'
+onnx_path = "C:\\Users\\austi\\Downloads\\clip-vit-large-patch14-visual-quint8.onnx"
+# config_path = 'C:\\Users\\austi\\Downloads\\ryzen-ai-sw-1.1\\ryzen-ai-sw-1.1\\voe-4.0-win_amd64\\vaip_config.json'
+config_path = '.\\vaip_config.json'
 session = onnxruntime.InferenceSession(
                onnx_path,
                providers=["VitisAIExecutionProvider"],
@@ -324,6 +326,7 @@ input_name = session.get_inputs()[0].name
 # input_data = np.transpose(to_numpy(image), (0, 2, 3, 1))
 input_data = to_numpy(image)
 npu_qresult = session.run([], {input_name: input_data})
+print(npu_qresult)
 
 # %%
 # run second part
@@ -332,10 +335,20 @@ npu_qresult = session.run([], {input_name: input_data})
 #                onnx_path,
 #                providers=["CPUExecutionProvider"])
 onnx_path = os.path.join(onnx_dir, "image_model_1_reshaped.onnx")
+# model_def = onnx.version_converter.convert_version(model_def, 8)
+import onnxruntime as rt
+sess_options = rt.SessionOptions()
+
+# Set graph optimization level
+sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+
+# To enable model serialization after graph optimization set this
+sess_options.optimized_model_filepath = os.path.join(onnx_dir, "image_model_1_opt_vaip.onnx")
 session = onnxruntime.InferenceSession(
                onnx_path,
+               sess_options,
                providers=["VitisAIExecutionProvider"],
-               provider_options=[{"config_file":config_path}])
+               provider_options=[{"config_file":'./vaip_config.json'}])
 input_shape = session.get_inputs()[0].shape
 input_name = session.get_inputs()[0].name
 # npu_qresult = session.run([], {input_name: npu_qresult[0]})
