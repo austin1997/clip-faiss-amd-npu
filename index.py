@@ -80,7 +80,6 @@ def index(image_dir_path):
     #     image_features = model.encode_image(image_input).float()
     image_features /= image_features.norm(dim=-1, keepdim=True)
     image_features = image_features.cpu().numpy()
-    print(image_features.shape)
     index = faiss.IndexFlatIP(image_features.shape[1])
     index.add(image_features)
     write_index(index, "static/index.faiss")
