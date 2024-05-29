@@ -59,11 +59,18 @@ np.testing.assert_allclose(torch_out[1], torch_out2[1], rtol=1e-03, atol=1e-05)
 import os
 import onnx
 import onnxsim
-def export_onnx_model(model, input, dir_path, filename):
+def export_onnx_model(model, input, dir_path, filename, dynamic = False):
     os.makedirs(dir_path, exist_ok=True)
     filepath = os.path.join(dir_path, filename)
     if os.path.exists(filepath):
         os.remove(filepath)
+    if dynamic:
+        dynamic_axes = {
+                        'input.0' : {0 : 'batch_size'},
+                        # 'output.0' : {0 : 'batch_size'}
+                       }
+    else:
+        dynamic_axes = None
     torch.onnx.export(model,               # model being run
                 input,                         # model input (or a tuple for multiple inputs)
                 filepath,   # where to save the model (can be a file or file-like object)
@@ -72,10 +79,7 @@ def export_onnx_model(model, input, dir_path, filename):
                 do_constant_folding=True,  # whether to execute constant folding for optimization
                 input_names = ['input.0'],   # the model's input names
                 output_names = ['output.0'], # the model's output names
-                # dynamic_axes={
-                #     'input.0' : {0 : 'batch_size'},
-                #     'output.0' : {0 : 'batch_size'}
-                # }# variable length axes
+                dynamic_axes= dynamic_axes  # variable length axes
                 )
     onnx_model = onnx.load(filepath)
     onnx.checker.check_model(onnx_model)
@@ -91,9 +95,9 @@ def export_onnx_model(model, input, dir_path, filename):
 text = text[0].reshape(1, -1)
 onnx_dir = "./onnx/" + model_name
 model.forward = forword_bk
-export_onnx_model(model, (image, text), onnx_dir, 'model.onnx')
+export_onnx_model(model, (image, text), onnx_dir, 'model.onnx', True)
 model.forward = model.encode_image
-export_onnx_model(model, (image,), onnx_dir, 'image_model.onnx')
+export_onnx_model(model, (image,), onnx_dir, 'image_model.onnx', True if 'RN50' in model_name else False)
 model.forward = model.encode_text
 export_onnx_model(model, (text,), onnx_dir, 'text_model.onnx')
 
@@ -144,7 +148,8 @@ print("Exported model has been tested with ONNXRuntime, and the result looks goo
 
 # %% split onnx model by name
 import onnx
-split_tensor_name = '/visual/attnpool/Add_output_0'
+# split_tensor_name = '/visual/attnpool/Add_output_0'
+split_tensor_name = '/visual/layer4/layer4.2/relu3/Relu_output_0'
 onnx_dir = "./onnx/" + model_name
 onnx_path = os.path.join(onnx_dir, "image_model.onnx")
 output_path = os.path.join(onnx_dir, "image_model_0.onnx")
@@ -205,12 +210,16 @@ class DataReader(onnxruntime.quantization.CalibrationDataReader):
                 self.features.append(tmp.reshape(1, -1))
         self.enum_data = None
         self.input_name = input_name
+        self.cnt = 0
 
     def get_next(self):
         if self.enum_data is None:
             self.enum_data = iter(
                 [{self.input_name: data} for data in self.features]
             )
+        # if self.cnt % 10 == 0:
+        #     print("cnt: ", self.cnt)
+        self.cnt += 1
         return next(self.enum_data, None)
 
     def rewind(self):
@@ -220,13 +229,14 @@ class DataReader(onnxruntime.quantization.CalibrationDataReader):
 # quantize image model
 import vai_q_onnx
 
-data_reader = DataReader(datasets, 'input.0', True, 200, 224)
+data_reader = DataReader(datasets, 'input.0', True, 500, 224)
 onnx_dir = "./onnx/" + model_name
 onnx_path = os.path.join(onnx_dir, "image_model_0.onnx")
 output_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
+onnxruntime.quantization.shape_inference.quant_pre_process(onnx_path, output_model_path=output_path)
 # CNN on NPU
 vai_q_onnx.quantize_static(
-   onnx_path,
+   output_path,
    output_path,
    data_reader,
    quant_format=vai_q_onnx.QuantFormat.QDQ,
@@ -234,9 +244,33 @@ vai_q_onnx.quantize_static(
    activation_type=vai_q_onnx.QuantType.QUInt8,
    weight_type=vai_q_onnx.QuantType.QInt8,
    enable_ipu_cnn=True,
-   extra_options={'ActivationSymmetric':True},
+   include_cle=True,
+   extra_options={
+       'ActivationSymmetric':True,
+       'ReplaceClip6Relu': True,
+       'CLESteps': 1,
+       'CLEScaleAppendBias': True,
+                  },
 #    convert_nchw_to_nhwc=True
 )
+# vai_q_onnx.quantize_static(
+#    output_path,
+#    output_path,
+#    data_reader,
+#    quant_format=vai_q_onnx.VitisQuantFormat.QDQ,
+#    calibrate_method=vai_q_onnx.PowerOfTwoMethod.MinMSE,
+#    activation_type=vai_q_onnx.VitisQuantType.QInt16,
+#    weight_type=vai_q_onnx.VitisQuantType.QInt16,
+#    enable_ipu_cnn=True,
+#    enable_dpu=True,
+#    extra_options={
+#        'ActivationSymmetric':True,
+#        'ReplaceClip6Relu': True,
+#        'CLESteps': 1,
+#        'CLEScaleAppendBias': True,
+#                   },
+# #    convert_nchw_to_nhwc=True
+# )
 
 # %%
 # quantize second part
@@ -311,9 +345,9 @@ onnx_dir = "./onnx/" + model_name
 onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
 # onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
 # onnx_path = "D:\\git_repo\\clip-faiss-amd-npu\\quantize_result\\CLIP_int.onnx"
-onnx_path = "C:\\Users\\austi\\Downloads\\clip-vit-large-patch14-visual-quint8.onnx"
-# config_path = 'C:\\Users\\austi\\Downloads\\ryzen-ai-sw-1.1\\ryzen-ai-sw-1.1\\voe-4.0-win_amd64\\vaip_config.json'
-config_path = '.\\vaip_config.json'
+# onnx_path = "C:\\Users\\austi\\Downloads\\clip-vit-large-patch14-visual-quint8.onnx"
+config_path = 'C:\\Users\\austi\\Downloads\\ryzen-ai-sw-1.1\\ryzen-ai-sw-1.1\\voe-4.0-win_amd64\\vaip_config.json'
+# config_path = '.\\vaip_config.json'
 session = onnxruntime.InferenceSession(
                onnx_path,
                providers=["VitisAIExecutionProvider"],

@@ -5,29 +5,53 @@ import onnx2torch.node_converters
 import torch
 from onnx2torch import convert
 import os
+import numpy as np
+
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 model_name = "RN50"
 
 # Path to ONNX model
 onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "image_model_1_reshaped.onnx")
+onnx_path = os.path.join(onnx_dir, "text_model_reshaped.onnx")
+output_path = os.path.join(onnx_dir, "text_model_dynamic_quant.pt")
 # You can pass the path to the onnx model to convert it or...
 onnx_model = onnx.load(onnx_path)
 torch_model_1 = convert(onnx_model)
 torch_model_1.eval()
-input = torch.randn(50, 1, 2048)
+import onnxruntime
+session = onnxruntime.InferenceSession(
+               onnx_path,
+               providers=["CPUExecutionProvider"])
+input_shape = session.get_inputs()[0].shape
+input_name = session.get_inputs()[0].name
+for i in range(0, len(input_shape)):
+    if not isinstance(input_shape[i], int):
+        input_shape[i] = 1
+input = torch.randint(1, 10, input_shape).int()
+input_data = to_numpy(input)
+onnx_result = session.run([], {input_name: input_data})
+print(onnx_result)
+# print(torch_model_1)
 # import pdb; pdb.set_trace()
 print(torch_model_1(input))
-torch_model_1.to_folder("./torch_model/")
+# torch_model_1.to_folder("./text_torch_model/")
 
 # %% quantize
-from utils import Utils
-import qlinear
+try:
+    from utils import Utils
+    import qlinear
+except Exception:
+    import setup
+    from utils import Utils
+    import qlinear
 # print(torch_model_1)
 model_int8 = torch.ao.quantization.quantize_dynamic(
     torch_model_1,  # the original model
     {torch.nn.Linear},  # a set of layers to dynamically quantize
-    dtype=torch.qint8) 
+    dtype=torch.qint8)
+torch.save(model_int8, output_path)
 # print(model_int8)
 Utils.replace_node( model_int8, 
                     # torch.nn.Linear, 
@@ -35,12 +59,13 @@ Utils.replace_node( model_int8,
                     # qlinear.QLinearPerGrp, 
                     qlinear.QLinear, 
                     # (), {'device':'cpu', 'w_bit':4, 'group_size':32} )
-                    (), {'device':'aie', 'kernel_x_shape': (1, 2048), 'kernel_y_shape': (2048, 2048)} )
+                    (), {'device':'aie', 'kernel_x_shape': (8, 2048), 'kernel_y_shape': (2048, 2048)} )
 for n, m in torch_model_1.named_modules():
             if isinstance(m, qlinear.QLinearPerGrp):
                 print(f"Preparing weights of layer : {n}")
                 m.device = "aie"
                 m.quantize_weights()
+model_int8.eval()
 # for n, m in torch_model_1.named_modules():
 #     if isinstance(m, onnx2torch.node_converters.OnnxMatMul):
 #         print(n)

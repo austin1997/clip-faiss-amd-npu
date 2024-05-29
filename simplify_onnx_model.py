@@ -7,10 +7,12 @@ from google.protobuf.json_format import MessageToDict
 # model_name = "ViT-B/32"
 model_name = "RN50"
 onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "image_model_1.onnx")
-
+onnx_path = os.path.join(onnx_dir, "text_model.onnx")
+output_path = os.path.join(onnx_dir, "text_model_reshaped.onnx")
 onnx_model = onnx.load(onnx_path)
 # onnx.save_model(onnx_model, os.path.join(onnx_dir, "model.textproto"), "textproto")
+# %%
+# simpify
 onnx_graph = onnx_model.graph
 
 print("initializers: ")
@@ -47,7 +49,10 @@ def get_tensor_shape(input: str):
     value_info = value_info_dict[input]
     input_shape = []
     for dim in value_info.type.tensor_type.shape.dim:
-        input_shape.append(dim.dim_value)
+        if dim.HasField('dim_value'):
+            input_shape.append(dim.dim_value)
+        else:
+            input_shape.append(-1)
     return input_shape
 
 new_initializers = []
@@ -62,7 +67,10 @@ for name, node in node_dict.items():
     weight = onnx.numpy_helper.to_array(weight).copy()
     weight_shape = weight.shape
     input_shape = get_tensor_shape(node.input[0])
-    if len(input_shape) == len(weight_shape) or len(weight_shape) != 2:
+    if len(input_shape) == len(weight_shape) or \
+       len(weight_shape) != 2 or \
+       input_shape[-1] == -1 or \
+       input_shape[-1] != weight_shape[0]:
         continue
     output = node.output[0]
     output_users = input2nodes[output]
@@ -92,6 +100,8 @@ for name, node in node_dict.items():
     tensor_array = np.ones((2))
     for i in range(0, len(input_shape) - 1):
         tensor_array[0] *= input_shape[i]
+    if tensor_array[0] < 0:
+        tensor_array[0] = -1
     tensor_array[1] = input_shape[-1]
     new_initializer_tensor = onnx.helper.make_tensor(
         name=reshape_init_name,
@@ -145,14 +155,14 @@ graph_def = onnx.helper.make_graph(
 model_def = onnx.helper.make_model(graph_def, producer_name=onnx_model.producer_name)
 model_def.opset_import[0].version = onnx_model.opset_import[0].version
 model_def.ir_version = onnx_model.ir_version
-onnx.save_model(model_def, os.path.join(onnx_dir, "model_reshaped.textproto"), "textproto")
+# onnx.save_model(model_def, os.path.join(onnx_dir, "model_reshaped.textproto"), "textproto")
 model_def = onnx.shape_inference.infer_shapes(model_def)
 onnx.checker.check_model(model_def)
 # onnx.save(model_def, os.path.join(onnx_dir, "image_model_1_reshaped.onnx"))
 import onnxsim
 model_def, check = onnxsim.simplify(model_def)
 assert check, "Simplified ONNX model could not be validated"
-onnx.save(model_def, os.path.join(onnx_dir, "image_model_1_reshaped.onnx"))
+onnx.save(model_def, output_path)
 # %%
 # simplify with onnxruntime
 import onnxruntime as rt
