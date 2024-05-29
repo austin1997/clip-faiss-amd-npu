@@ -19,7 +19,6 @@ class App:
         onnx_dir = "./onnx/"+model_name
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # self.model, _ = clip.load(model_name, device=self.device)
         self.model = torch.load(os.path.join(onnx_dir, "text_model_dynamic_quant.pt"))
         Utils.replace_node( self.model, 
                     # torch.nn.Linear, 

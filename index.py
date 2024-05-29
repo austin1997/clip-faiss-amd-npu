@@ -14,7 +14,7 @@ import onnxruntime
 model_name = "RN50"
 onnx_dir = "./onnx/"+model_name
 onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
-config_path = 'C:\\Users\\austi\\Downloads\\ryzen-ai-sw-1.1\\ryzen-ai-sw-1.1\\voe-4.0-win_amd64\\vaip_config.json'
+config_path = '.\\vaip_config.json'
 session0 = onnxruntime.InferenceSession(
             onnx_path,
             providers=["VitisAIExecutionProvider"],
@@ -35,7 +35,6 @@ def to_numpy(tensor):
 
 def eval(image_input):
     # Load inputs and do preprocessing by input_shape
-    # print(image_input.shape)
     input_name = session0.get_inputs()[0].name
     input_shape = session0.get_inputs()[0].shape
     for i in range(0, len(input_shape)):
@@ -43,12 +42,9 @@ def eval(image_input):
             input_shape[i] = 1
     image_input = np.reshape(image_input, input_shape)
     npu_qresult = session0.run([], {input_name: image_input})
-    # print("Quantized: ", npu_qresult)
 
     input_name = session1.get_inputs()[0].name
     npu_qresult = session1.run([], {input_name: npu_qresult[0]})
-    # image_features = torch.from_numpy(npu_qresult[0])
-    # print("Quantized: ", npu_qresult)
     return npu_qresult[0]
 
 def index(image_dir_path):
@@ -69,15 +65,11 @@ def index(image_dir_path):
             if not img_file.endswith(".jpg"):
                 continue
             image = Image.open(os.path.join(img_dir_path, animal_name, img_file)).convert("RGB")
-            # images.append(preprocess(image))
             image = to_numpy(preprocess(image))
             image_paths.append(os.path.join(img_dir_path, animal_name, img_file))
             image_features.append(eval(image)[0])
 
-    # image_input = torch.tensor(np.stack(images)).to(device)
     image_features = torch.tensor(np.stack(image_features)).to(device)
-    # with torch.no_grad():
-    #     image_features = model.encode_image(image_input).float()
     image_features /= image_features.norm(dim=-1, keepdim=True)
     image_features = image_features.cpu().numpy()
     index = faiss.IndexFlatIP(image_features.shape[1])
@@ -90,7 +82,6 @@ def index(image_dir_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--image_dir_path", type=str, default="static/data/images")
-    parser.add_argument("--image_dir_path", type=str, default="D:\\Datasets\\ye-pop\\images\\chunk_1")
+    parser.add_argument("--image_dir_path", type=str, default="static/data/images")
     args = parser.parse_args()
     index(args.image_dir_path)
