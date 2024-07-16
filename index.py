@@ -47,6 +47,14 @@ def eval(image_input):
     npu_qresult = session1.run([], {input_name: npu_qresult[0]})
     return npu_qresult[0]
 
+def get_image_files(dir_path: str):
+    result = []
+    for root, _, files in os.walk(dir_path):
+        for file in files:
+            if file.endswith(".jpg") or file.endswith(".png"):
+                result.append(os.path.join(root, file))
+    return result
+
 def index(image_dir_path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -55,17 +63,11 @@ def index(image_dir_path):
     image_paths = []
     img_dir_path = image_dir_path
     image_features = []
-    for animal_name in sorted(os.listdir(img_dir_path)):
-        print(animal_name)
-        if not os.path.isdir(os.path.join(img_dir_path, animal_name)):
-            continue
-        for img_file in tqdm(os.listdir(os.path.join(img_dir_path, animal_name))):
-            if not img_file.endswith(".jpg"):
-                continue
-            image = Image.open(os.path.join(img_dir_path, animal_name, img_file)).convert("RGB")
-            image = to_numpy(preprocess(image))
-            image_paths.append(os.path.join(img_dir_path, animal_name, img_file))
-            image_features.append(eval(image)[0])
+    for img_file in tqdm(get_image_files(img_dir_path)):
+        image = Image.open(img_file).convert("RGB")
+        image = to_numpy(preprocess(image))
+        image_paths.append(img_file)
+        image_features.append(eval(image)[0])
 
     image_features = torch.tensor(np.stack(image_features)).to(device)
     image_features /= image_features.norm(dim=-1, keepdim=True)
