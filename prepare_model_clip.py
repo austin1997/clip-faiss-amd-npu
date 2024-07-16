@@ -8,9 +8,8 @@ print(clip.available_models())
 device = "cuda" if torch.cuda.is_available() else "cpu"
 # model_name = "ViT-B/32"
 model_name = "RN50"
-model, preprocess = clip.load(model_name, device=device, download_root="D:\\Models\\CLIP\\")
+model, preprocess = clip.load(model_name, device=device, download_root="./Models")
 model.eval()
-print(model)
 forword_bk = model.forward
 
 import numpy as np
@@ -22,37 +21,6 @@ def to_numpy(tensor):
 image = preprocess(Image.open("./demo.png")).unsqueeze(0).to(device)
 text = ["a diagram", "a dog", "a cat", "a koala"]
 text = clip.tokenize(text).to(device).int()
-
-# %%
-# eval model
-with torch.no_grad():
-    image_features = model.encode_image(image)
-    text_features = model.encode_text(text)
-    print('image_features: ', image_features)
-    torch_out = [to_numpy(image_features), to_numpy(text_features)]
-    print('torch_out[0]: ', torch_out[0])
-    model.forward = forword_bk
-    model_out = model(image, text)
-    image_features /= image_features.norm(dim=-1, keepdim=True)
-    text_features /= text_features.norm(dim=-1, keepdim=True)
-    text_probs = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-
-    model.forward = model.encode_image
-    image_features = model(image)
-    model.forward = model.encode_text
-    text_features = model(text)
-    torch_out2 = [to_numpy(image_features), to_numpy(text_features)]
-    image_features /= image_features.norm(dim=-1, keepdim=True)
-    text_features /= text_features.norm(dim=-1, keepdim=True)
-    text_probs2 = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-
-print("Label probs:", text_probs)  # prints: [[1., 0., 0.]]
-print("Label probs2:", text_probs2)  # prints: [[1., 0., 0.]]
-print("torch_out: ", torch_out)
-
-np.testing.assert_allclose(torch_out[0], torch_out2[0], rtol=1e-03, atol=1e-05)
-np.testing.assert_allclose(torch_out[1], torch_out2[1], rtol=1e-03, atol=1e-05)
-
 
 # %%
 # Export the splited model
@@ -126,24 +94,15 @@ onnx_path = os.path.join(onnx_dir, "text_model.onnx")
 ort_session = onnxruntime.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
 ort_text_out = run_onnx_session(ort_session, text)
 ort_outs = [ort_image_out[0], ort_text_out[0]]
-print(ort_outs)
 
 onnx_path = os.path.join(onnx_dir, "model.onnx")
 ort_session = onnxruntime.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
 ort_model_outs = run_onnx_session2(ort_session, image, text)
 
-
 # %%
-# compare ONNX Runtime and PyTorch results
-# np.testing.assert_allclose(to_numpy(model_out[0]), ort_model_outs[0], rtol=1e-03, atol=1e-05)
-# np.testing.assert_allclose(to_numpy(model_out[1]), ort_model_outs[1], rtol=1e-03, atol=1e-05)
-# np.testing.assert_allclose(torch_out[0], ort_outs[0], rtol=1e-03, atol=1e-05)
-model.forward = forword_bk
+# compare ONNX Runtime results
 np.testing.assert_allclose(to_numpy(model.encode_image(image)), ort_outs[0], rtol=1e-03, atol=1e-05)
-with torch.no_grad():
-    np.testing.assert_allclose(to_numpy(model.encode_image(image)), ort_outs[0], rtol=1e-03, atol=1e-05)
-# np.testing.assert_allclose(to_numpy(torch_out[1]), ort_outs[1], rtol=1e-03, atol=1e-05)
-
+np.testing.assert_allclose(to_numpy(model.encode_text(text)), ort_outs[1], rtol=1e-03, atol=1e-05)
 print("Exported model has been tested with ONNXRuntime, and the result looks good!")
 
 # %% split onnx model by name
@@ -157,20 +116,6 @@ onnx.utils.extract_model(onnx_path, output_path, ['input.0'], [split_tensor_name
 output_path = os.path.join(onnx_dir, "image_model_1.onnx")
 onnx.utils.extract_model(onnx_path, output_path, [split_tensor_name], ['output.0'])
 
-# %% Export the model dynamo
-model.forward = model.encode_image
-compiled_image_model = torch.compile(model)
-onnx_program = torch.onnx.dynamo_export(compiled_image_model, image)
-onnx_program.save(os.path.join(onnx_dir, 'image_model_dynamo.onnx'))
-with torch.no_grad():
-    import os
-    onnx_dir = "./onnx/"+model_name+"_"+pretrain_dataset + "_dynamo"
-    onnx_path = onnx_dir + "/model.onnx"
-    os.makedirs(onnx_dir, exist_ok=True)
-    args = (image, text)
-    onnx_program = torch.onnx.dynamo_export(model, *args)
-    onnx_program.save(onnx_path)
-
 # %%
 # prepare calibration dataset
 import onnxruntime
@@ -178,7 +123,7 @@ import onnxruntime.quantization
 import pandas as pd
 import requests
 import pickle
-dataset_path = 'D:\\Datasets\\220k-GPT4Vision-captions-from-LIVIS\\lvis_caption_url.parquet'
+dataset_path = './Datasets/lvis_caption_url.parquet'
 datasets = pd.read_parquet(dataset_path)
 datasets = datasets.head(1000)
 
@@ -186,7 +131,7 @@ class DataReader(onnxruntime.quantization.CalibrationDataReader):
     def __init__(self, dataframe: pd.DataFrame, input_name: str, is_image: bool, len = 1000, resolution = None):
         self.features = []
         if is_image:
-            cache_path = 'D:\\Datasets\\220k-GPT4Vision-captions-from-LIVIS\\clip-image.pkl'
+            cache_path = './Datasets/clip-image.pkl'
             if os.path.exists(cache_path):
                 with open(cache_path, 'rb') as f:
                     images = pickle.load(f)
@@ -251,158 +196,5 @@ vai_q_onnx.quantize_static(
        'CLESteps': 1,
        'CLEScaleAppendBias': True,
                   },
-#    convert_nchw_to_nhwc=True
 )
-# vai_q_onnx.quantize_static(
-#    output_path,
-#    output_path,
-#    data_reader,
-#    quant_format=vai_q_onnx.VitisQuantFormat.QDQ,
-#    calibrate_method=vai_q_onnx.PowerOfTwoMethod.MinMSE,
-#    activation_type=vai_q_onnx.VitisQuantType.QInt16,
-#    weight_type=vai_q_onnx.VitisQuantType.QInt16,
-#    enable_ipu_cnn=True,
-#    enable_dpu=True,
-#    extra_options={
-#        'ActivationSymmetric':True,
-#        'ReplaceClip6Relu': True,
-#        'CLESteps': 1,
-#        'CLEScaleAppendBias': True,
-#                   },
-# #    convert_nchw_to_nhwc=True
-# )
-
-# %%
-# quantize second part
-import vai_q_onnx
-# data_reader = DataReader(datasets, split_tensor_name, False, 200, 224)
-onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "image_model_1_reshaped.onnx")
-output_path = os.path.join(onnx_dir, "image_model_1_quantized.onnx")
-# onnx_path = os.path.join(onnx_dir, "image_model.onnx")
-# output_path = os.path.join(onnx_dir, "image_model_quantized.onnx")
-# Transformer on NPU
-vai_q_onnx.quantize_static(
-   onnx_path,
-   output_path,
-   None,
-   quant_format=vai_q_onnx.QuantFormat.QDQ,
-   calibrate_method=vai_q_onnx.CalibrationMethod.MinMax,
-   activation_type=vai_q_onnx.QuantType.QInt8,
-   weight_type=vai_q_onnx.QuantType.QInt8,
-   enable_ipu_transformer=True,
-)
-
-# %%
-# merge splited models
-import onnx
-onnx_dir = "./onnx/" + model_name
-input_path1 = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
-input_path2 = os.path.join(onnx_dir, "image_model_1_quantized.onnx")
-model1 = onnx.load(input_path1)
-model2 = onnx.load(input_path2)
-combined_model = onnx.compose.merge_models(
-    model1, model2,
-    io_map=[(split_tensor_name, split_tensor_name)]
-)
-
-# %%
-# quantize text model
-import vai_q_onnx
-
-data_reader = DataReader(datasets, 'input.0', False)
-onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "text_model.onnx")
-output_path = os.path.join(onnx_dir, "text_model_quantized.onnx")
-
-exclude_node_list = []
-
-vai_q_onnx.quantize_static(
-   onnx_path,
-   output_path,
-   data_reader,
-   quant_format=vai_q_onnx.QuantFormat.QDQ,
-   calibrate_method=vai_q_onnx.CalibrationMethod.MinMax,
-   activation_type=vai_q_onnx.QuantType.QInt8,
-   weight_type=vai_q_onnx.QuantType.QInt8,
-   enable_ipu_transformer=True
-)
-
-# %%
-# run quantized image model on NPU
-import onnxruntime
-import os
-import numpy as np
-# Add user imports
-# ...
-
-# Load inputs and perform preprocessing
-# ...
-
-# Create an inference session using the Vitis AI execution provider
-
-onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
-# onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
-# onnx_path = "D:\\git_repo\\clip-faiss-amd-npu\\quantize_result\\CLIP_int.onnx"
-# onnx_path = "C:\\Users\\austi\\Downloads\\clip-vit-large-patch14-visual-quint8.onnx"
-config_path = 'C:\\Users\\austi\\Downloads\\ryzen-ai-sw-1.1\\ryzen-ai-sw-1.1\\voe-4.0-win_amd64\\vaip_config.json'
-# config_path = '.\\vaip_config.json'
-session = onnxruntime.InferenceSession(
-               onnx_path,
-               providers=["VitisAIExecutionProvider"],
-               provider_options=[{"config_file":config_path}])
-
-input_shape = session.get_inputs()[0].shape
-input_name = session.get_inputs()[0].name
-
-# Load inputs and do preprocessing by input_shape
-# input_data = np.transpose(to_numpy(image), (0, 2, 3, 1))
-input_data = to_numpy(image)
-npu_qresult = session.run([], {input_name: input_data})
-print(npu_qresult)
-
-# %%
-# run second part
-# onnx_path = os.path.join(onnx_dir, "image_model_1.onnx")
-# session = onnxruntime.InferenceSession(
-#                onnx_path,
-#                providers=["CPUExecutionProvider"])
-onnx_path = os.path.join(onnx_dir, "image_model_1_reshaped.onnx")
-# model_def = onnx.version_converter.convert_version(model_def, 8)
-import onnxruntime as rt
-sess_options = rt.SessionOptions()
-
-# Set graph optimization level
-sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
-
-# To enable model serialization after graph optimization set this
-sess_options.optimized_model_filepath = os.path.join(onnx_dir, "image_model_1_opt_vaip.onnx")
-session = onnxruntime.InferenceSession(
-               onnx_path,
-               sess_options,
-               providers=["VitisAIExecutionProvider"],
-               provider_options=[{"config_file":'./vaip_config.json'}])
-input_shape = session.get_inputs()[0].shape
-input_name = session.get_inputs()[0].name
-# npu_qresult = session.run([], {input_name: npu_qresult[0]})
-npu_qresult = session.run([], {input_name: np.random.rand(*input_shape).astype(np.float32)})
-original_result = model.encode_image(image)
-print("Quantized: ", npu_qresult)
-print("original: ", original_result)
-
-# %%
-# calc loss
-loss_fct = torch.nn.CrossEntropyLoss()
-loss = loss_fct(
-    torch.tensor(npu_qresult[0]),
-    original_result 
-)
-print("loss: ", loss.float())
-image_features = torch.tensor(npu_qresult[0])
-text_features = model.encode_text(text)
-image_features /= image_features.norm(dim=-1, keepdim=True)
-text_features /= text_features.norm(dim=-1, keepdim=True)
-text_probs = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-print(text_probs)
-# %%
+print("Quantize Resnet50 & export ONNX done")

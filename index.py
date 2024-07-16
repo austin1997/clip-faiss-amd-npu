@@ -50,10 +50,8 @@ def eval(image_input):
 def index(image_dir_path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    model, preprocess = clip.load(model_name, device=device, download_root='D:\\Models\\CLIP\\')
-    model.eval()
+    _, preprocess = clip.load(model_name, device=device, download_root='./Models')
 
-    images = []
     image_paths = []
     img_dir_path = image_dir_path
     image_features = []

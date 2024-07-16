@@ -29,13 +29,13 @@ input_name = session.get_inputs()[0].name
 for i in range(0, len(input_shape)):
     if not isinstance(input_shape[i], int):
         input_shape[i] = 1
-input = torch.randint(1, 10, input_shape).int()
-input_data = to_numpy(input)
-onnx_result = session.run([], {input_name: input_data})
-print(onnx_result)
+# input = torch.randint(1, 10, input_shape).int()
+# input_data = to_numpy(input)
+# onnx_result = session.run([], {input_name: input_data})
+# print(onnx_result)
 # print(torch_model_1)
 # import pdb; pdb.set_trace()
-print(torch_model_1(input))
+# print(torch_model_1(input))
 # torch_model_1.to_folder("./text_torch_model/")
 
 # %% quantize
@@ -71,6 +71,6 @@ model_int8.eval()
 #         print(n)
 # for node in torch_model_1.graph.nodes:
 #     node.
-
+print("Dynamic quantized model is saved to ", output_path)
 # %% run model
-print(torch_model_1(input))
+# print(torch_model_1(input))

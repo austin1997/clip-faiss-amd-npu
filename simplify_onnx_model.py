@@ -15,20 +15,18 @@ onnx_model = onnx.load(onnx_path)
 # simpify
 onnx_graph = onnx_model.graph
 
-print("initializers: ")
 initializer_dict: dict[str, onnx.TensorProto] = {}
 for initializer in onnx_graph.initializer:
     initializer_dict[initializer.name] = initializer
 
-print("inputs: ")
 input_dict : dict[str, onnx.ValueInfoProto] = {}
 for input in onnx_graph.input:
     input_dict[input.name] = input
-print("value_infos: ")
+
 value_info_dict: dict[str, onnx.ValueInfoProto] = {}
 for value in onnx_model.graph.value_info:
     value_info_dict[value.name] = value
-print("nodes: ")
+
 node_dict: dict[str, onnx.NodeProto] = {}
 input2nodes: dict[str, list] = {}
 output2nodes: dict[str, list] = {}
@@ -91,7 +89,6 @@ for name, node in node_dict.items():
             bias_initializer = user.input[1]
         else:
             continue
-    print(name)
 
     # create reshape
     reshape_name = "Gemm_reshape_before_" + str(cnt)
@@ -163,20 +160,6 @@ import onnxsim
 model_def, check = onnxsim.simplify(model_def)
 assert check, "Simplified ONNX model could not be validated"
 onnx.save(model_def, output_path)
-# %%
-# simplify with onnxruntime
-import onnxruntime as rt
-
-onnx_model = onnx.load(os.path.join(onnx_dir, "image_model_1_reshaped.onnx"))
-# model_def = onnx.version_converter.convert_version(model_def, 8)
-sess_options = rt.SessionOptions()
-
-# Set graph optimization level
-sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
-
-# To enable model serialization after graph optimization set this
-sess_options.optimized_model_filepath = os.path.join(onnx_dir, "image_model_1_opt.onnx")
-
-session = rt.InferenceSession(onnx_model.SerializeToString(), sess_options, providers=["CPUExecutionProvider"])
+print("Simplified ONNX model is saved to ", output_path)
 
 # %%
