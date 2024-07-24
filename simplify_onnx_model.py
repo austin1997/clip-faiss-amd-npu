@@ -3,7 +3,7 @@
 import onnx
 import os
 import numpy as np
-from google.protobuf.json_format import MessageToDict
+# from google.protobuf.json_format import MessageToDict
 # model_name = "ViT-B/32"
 model_name = "RN50"
 onnx_dir = "./onnx/" + model_name

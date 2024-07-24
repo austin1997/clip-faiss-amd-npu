@@ -37,3 +37,4 @@ pybind11[global]
 spdlog
 eigen
 nlohmann_json
+onnx2torch

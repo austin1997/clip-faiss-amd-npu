@@ -59,12 +59,47 @@ When a user submits a natural language query, the application takes the input an
 ```commandline
 git clone https://github.com/abinthomasonline/clip-faiss.git
 ```
-2. Install the required packages
+2. Install [RyzenAI Software packages](https://ryzenai.docs.amd.com/en/latest/inst.html), activate the conda environment where the RyzenAI installed
+```
+conda activate <env_name>
+```
+3. Install the required packages
 ```commandline
 pip install -r requirements.txt
 ```
+4. Setup envirenment variables for RyzenAI
+```
+.\setup.bat
+```
 
 ## Usage
+### Prepare models for RyzenAI
+#### Quantize Resnet50 & export ONNX model
+1. Automatically download clip/RN50, which stores in `.\Models\`
+2. Download dataset for quantization to `.\Datasets\`
+3. Quantize and convert the RN50 section to ONNX, saved to `.\onnx\`.
+```
+python prepare_model_clip.py
+```
+The output contains:
+1. `model.onnx`: The entire model
+2. `image_model.onnx`: The image encoder
+3. `text_model.onnx`: The text encoder
+4. `image_model_0.onnx`: The RN50 section of the image encoder
+5. `image_model_1.onnx`: The image encoder without RN50
+4. `image_model_0_quantized.onnx`: The quantized RN50
+#### Quantize and export the text encoder
+1. Simpify the onnx model so that more Matmul+add can be fused to GEMM
+2. Quantize the model using dynamic quantization
+3. Convert the model back to PyTorch model to dynamically offload GEMM operations to NPU.
+```
+python simpify_onnx_model.py
+python convert_onnx_to_torch.py
+```
+The outputs are in `.\onnx\` as well and contains:
+1. `text_model_reshaped.onnx`: The simplified text encoder
+2. `text_model_dynamic_quant.pt`: The quantized PyTorch text encoder
+
 ### Create index
 ```commandline
 python index.py --image_dir_path <path_to_images>
