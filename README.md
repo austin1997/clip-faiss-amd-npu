@@ -119,7 +119,7 @@ The application will prompt the user to enter a natural language query. The top 
 ```commandline
 python serve.py
 ```
-The application will be hosted at `http://localhost:5000/`. Enter a natural language query in the search bar and press `Search` to submit the query. The top 5 results will be displayed below the search bar.
+The application will be hosted at `http://localhost:5000/`. Enter a natural language query in the search bar and press `Search` to submit the query. The top 5 results will be displayed below the search bar. For security reasons proposed by browers, loading local images may broken.
 
 ## Dataset
 The demo uses a dataset of 5400 animal images in 90 different categories. The dataset can be downloaded from [here](https://www.kaggle.com/datasets/iamsouravbanerjee/animal-image-dataset-90-different-animals).
