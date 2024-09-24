@@ -65,7 +65,8 @@ conda activate <env_name>
 ```
 3. Install the required packages
 ```commandline
-pip install -r requirements.txt
+conda env update --file env.yaml
+pip install ops\cpp --force-reinstall
 ```
 4. Setup envirenment variables for RyzenAI
 ```
