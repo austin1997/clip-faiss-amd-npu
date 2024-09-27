@@ -61,7 +61,7 @@ def export_onnx_model(model, input, dir_path, filename, dynamic = False):
 # onnx_program.save(onnx_path)
 # model = torch.jit.script(model)
 text = text[0].reshape(1, -1)
-onnx_dir = "./onnx/" + model_name
+onnx_dir = "./output_models/" + model_name
 model.forward = forword_bk
 export_onnx_model(model, (image, text), onnx_dir, 'model.onnx', True)
 model.forward = model.encode_image
@@ -83,7 +83,6 @@ def run_onnx_session2(session, input0, input1):
     ort_outs = session.run(None, ort_inputs)
     return ort_outs
 
-onnx_dir = "./onnx/" + model_name
 text = text[0].reshape(1, -1)
 onnx_path = os.path.join(onnx_dir, "image_model.onnx")
 ort_session = onnxruntime.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
@@ -109,7 +108,6 @@ print("Exported model has been tested with ONNXRuntime, and the result looks goo
 import onnx
 # split_tensor_name = '/visual/attnpool/Add_output_0'
 split_tensor_name = '/visual/layer4/layer4.2/relu3/Relu_output_0'
-onnx_dir = "./onnx/" + model_name
 onnx_path = os.path.join(onnx_dir, "image_model.onnx")
 output_path = os.path.join(onnx_dir, "image_model_0.onnx")
 onnx.utils.extract_model(onnx_path, output_path, ['input.0'], [split_tensor_name])
@@ -174,10 +172,9 @@ class DataReader(onnxruntime.quantization.CalibrationDataReader):
 # quantize image model
 import vai_q_onnx
 
-data_reader = DataReader(datasets, 'input.0', True, 500, 224)
-onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "image_model_0.onnx")
-output_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
+data_reader = DataReader(datasets, 'input.0', True, 150, 224)
+onnx_path = os.path.join(onnx_dir, "image_model.onnx")
+output_path = os.path.join(onnx_dir, "image_model_quantized.onnx")
 onnxruntime.quantization.shape_inference.quant_pre_process(onnx_path, output_model_path=output_path)
 # CNN on NPU
 vai_q_onnx.quantize_static(

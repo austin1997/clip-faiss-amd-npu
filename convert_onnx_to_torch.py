@@ -5,6 +5,7 @@ import onnx2torch.node_converters
 import torch
 from onnx2torch import convert
 import os
+import sys
 import numpy as np
 
 def to_numpy(tensor):
@@ -13,9 +14,9 @@ def to_numpy(tensor):
 model_name = "RN50"
 
 # Path to ONNX model
-onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "text_model_reshaped.onnx")
-output_path = os.path.join(onnx_dir, "text_model_dynamic_quant.pt")
+onnx_dir = "./output_models/" + model_name
+onnx_path = os.path.join(onnx_dir, "text_model_reshaped.onnx" if len(sys.argv) < 2 else sys.argv[1])
+output_path = os.path.join(onnx_dir, "text_model_dynamic_quant.pt" if len(sys.argv) < 3 else sys.argv[2])
 # You can pass the path to the onnx model to convert it or...
 onnx_model = onnx.load(onnx_path)
 torch_model_1 = convert(onnx_model)

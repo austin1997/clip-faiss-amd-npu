@@ -16,7 +16,7 @@ except Exception:
 class App:
     def __init__(self):
         model_name = "RN50"
-        onnx_dir = "./onnx/"+model_name
+        onnx_dir = "./output_models/"+model_name
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model = torch.load(os.path.join(onnx_dir, "text_model_dynamic_quant.pt"))

@@ -12,8 +12,8 @@ import torch
 import onnxruntime
 
 model_name = "RN50"
-onnx_dir = "./onnx/"+model_name
-onnx_path = os.path.join(onnx_dir, "image_model_0_quantized.onnx")
+onnx_dir = "./output_models/"+model_name
+onnx_path = os.path.join(onnx_dir, "image_model_quantized.onnx")
 config_path = '.\\vaip_config.json'
 session0 = onnxruntime.InferenceSession(
             onnx_path,

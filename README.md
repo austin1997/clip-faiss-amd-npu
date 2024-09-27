@@ -68,17 +68,13 @@ conda activate <env_name>
 conda env update --file env.yaml
 pip install ops\cpp --force-reinstall
 ```
-4. Setup envirenment variables for RyzenAI
-```
-.\setup.bat
-```
 
 ## Usage
 ### Prepare models for RyzenAI
 #### Quantize Resnet50 & export ONNX model
 1. Automatically download clip/RN50, which stores in `.\Models\`
 2. Download dataset for quantization to `.\Datasets\`
-3. Quantize and convert the RN50 section to ONNX, saved to `.\onnx\`.
+3. Quantize and convert the RN50 section to ONNX, saved to `.\output_models\`.
 ```
 python prepare_model_clip.py
 ```
@@ -97,11 +93,18 @@ The output contains:
 python simpify_onnx_model.py
 python convert_onnx_to_torch.py
 ```
-The outputs are in `.\onnx\` as well and contains:
+The outputs are in `.\output_models\` as well and contains:
 1. `text_model_reshaped.onnx`: The simplified text encoder
 2. `text_model_dynamic_quant.pt`: The quantized PyTorch text encoder
 
 ### Create index
+(optional) set environment for better performance (clear and recompile the model required)
+```
+set XLNX_VART_FIRMWARE=C:\path\to\4x4.xclbin
+set XLNX_TARGET_NAME=AMD_AIE2_4x4_Overlay
+set NUM_OF_DPU_RUNNERS=1
+```
+The `4x4.xclbin` file is located in the `voe-4.0-win_amd64` folder of the Ryzen AI Software installation package.
 ```commandline
 python index.py --image_dir_path <path_to_images>
 ```
@@ -112,12 +115,16 @@ A mapping file named `image_paths.json` will be created in the `static` director
 
 ### Search app in CLI
 ```commandline
+.\setup.bat # Setup envirenment variables for RyzenAI
+
 python app.py
 ```
 The application will prompt the user to enter a natural language query. The top result will be displayed in a new window. Enter `exit` to quit the application.
 
 ### Search Web App
 ```commandline
+.\setup.bat # Setup envirenment variables for RyzenAI
+
 python serve.py
 ```
 The application will be hosted at `http://localhost:5000/`. Enter a natural language query in the search bar and press `Search` to submit the query. The top 5 results will be displayed below the search bar. For security reasons proposed by browers, loading local images may broken.

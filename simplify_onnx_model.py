@@ -3,12 +3,13 @@
 import onnx
 import os
 import numpy as np
+import sys
 # from google.protobuf.json_format import MessageToDict
 # model_name = "ViT-B/32"
 model_name = "RN50"
-onnx_dir = "./onnx/" + model_name
-onnx_path = os.path.join(onnx_dir, "text_model.onnx")
-output_path = os.path.join(onnx_dir, "text_model_reshaped.onnx")
+onnx_dir = "./output_models/" + model_name
+onnx_path = os.path.join(onnx_dir, "text_model.onnx" if len(sys.argv) < 2 else sys.argv[1])
+output_path = os.path.join(onnx_dir, "text_model_reshaped.onnx" if len(sys.argv) < 3 else sys.argv[2])
 onnx_model = onnx.load(onnx_path)
 # onnx.save_model(onnx_model, os.path.join(onnx_dir, "model.textproto"), "textproto")
 # %%
